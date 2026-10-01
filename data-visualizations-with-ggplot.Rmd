@@ -15,6 +15,11 @@ This week is all about making plots and graphs in ggplot2.  The only datasets yo
 1) sttstj_fish_biomass
 2) taxonomic
 
+library(tidyverse)
+library(readxl)
+
+mass = read_csv("data/sttstj_fish_biomass.csv")
+tax = read_csv("data/taxonomic.csv")
 
 Inspect the sttstj_fish_biomass dataset.  It is 5 years of biomass (kg/177m2) data for 9 fish species inside the VI national park (prot = 1) and outside the national park (prot = 0). 
 
@@ -22,13 +27,101 @@ In this instance, anytime you need to group by and summarize, you can just take 
 
 1. Create a line graph of biomass over time for Red hind ("EPI GUTT") inside the national park.  The title of the graph should use Scientific name.
 
-2. Create a point and line graph of biomass over time for Yellowtail Snapper ("OCY CHRY") outside the national park. The title of the graph should use **italicized** Scientific name.
+print(tax)
+mass <- mass |>
+ left_join(tax |> select(SPECIES_CD, SCINAME), by = "SPECIES_CD")
+
+gutt = mass |>
+  filter(SPECIES_CD=="EPI GUTT",protected_status==1)
+  
+p1 = ggplot(gutt, aes(x = YEAR, y = biomass)) +
+  geom_line() + 
+  scale_x_continuous(breaks = unique(gutt$YEAR)) +
+  labs(title = bquote(italic(.(unique(gutt$SCINAME))) ~ "biomass over time inside VI National Park"), 
+  x = "Year", 
+  y = expression(Biomass~(kg/m^2)))
+  
+p1
+
+ 
+ 2. Create a point and line graph of biomass over time for Yellowtail Snapper ("OCY CHRY") outside the national park. The title of the graph should use **italicized** Scientific name.
+ 
+snap = mass |> 
+  filter(SPECIES_CD == "OCY CHRY", protected_status == 0)
+
+p2 = ggplot(snap, aes(x = YEAR, y = biomass)) + 
+  geom_point() + 
+  geom_line() + 
+  scale_x_continuous(breaks = unique(snap$YEAR)) +
+  labs(title = bquote(italic(.(unique(snap$SCINAME))) ~ "biomass over time outside VI National Park"), 
+       x = "Year", 
+       y = expression(Biomass~(kg/m^2)))
+p2
+
 
 3. Create a bar graph of biomass over time for all parrotfish grouped by protected_status.  Edit the the axis and legend titles to be more insightful.
     - biomass units
     - Scientific name instead of SPECIES_CD
     - 0 = Open, 1 = VI National Park
     
+parrot = mass |> 
+  filter(trophic=="parrotfish") |> 
+  group_by(YEAR,protected_status) |> 
+  summarise(total_mass = sum(biomass))
+  
+p3 = ggplot(parrot, aes(x = YEAR, y = total_mass, fill = factor(protected_status))) +
+  geom_col(position = position_dodge()) +
+  scale_x_continuous(breaks = unique(parrot$YEAR)) +
+  scale_fill_discrete(labels = c("0" = "Open", "1" = "VI National Park")) +
+  labs(title = "Parrotfish biomass over time by protected status", 
+    x = "Year", 
+    y = expression(Biomass~(kg/m^2)), 
+    fill = "Protected Status")
+p3
+
 4. Create a bar graph of trophic-level mean biomass inside and outside VI national park. Hint: You will pool all 5 years 
 
+troph = mass |> 
+  group_by(trophic,protected_status) |> 
+  summarise(mean_mass=mean(biomass),
+            SE=sd(biomass)/sqrt(n()))
+  
+p4 = ggplot(troph, aes(trophic,mean_mass, fill=factor(protected_status))) +
+  geom_col(position=position_dodge(0.9)) +
+  geom_errorbar(aes(ymin=mean_mass-SE,ymax=mean_mass+SE),
+              position=position_dodge(0.9),
+              width=0.5) +
+  scale_fill_discrete(labels = c("0" = "Open", "1" = "VI National Park")) +
+  labs(title = "Trophic-level mean biomass ± SE inside and outside VI National Park", 
+    x = "Trophic level", 
+    y = expression(Mean~biomass~(kg/m^2)), 
+    fill = "Protected status")
+  
+
+p4
+
 5. Create a point and line plot of 'grouper' biomass (+- SE) over time; inside and outside park plots will be on the same graph. Hint: SE = square root of var.
+
+group = mass |> 
+  filter(trophic=="grouper") |> 
+  group_by(YEAR,protected_status) |> 
+  summarise(mean_mass = mean(biomass),
+            SE = sqrt(sum(var)) / n())
+
+p5 = ggplot(group, aes(YEAR, mean_mass,
+                        color = factor(protected_status),
+                        fill = factor(protected_status),
+                        group = factor(protected_status))) +
+  geom_ribbon(aes(ymin = mean_mass - SE, ymax = mean_mass + SE), alpha = 0.2, color = NA) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = unique(group$YEAR)) +
+  scale_color_discrete(labels = c("0" = "Open", "1" = "VI National Park")) +
+  scale_fill_discrete(labels = c("0" = "Open", "1" = "VI National Park")) +
+  labs(title = "Grouper biomass (± SE) over time inside and outside VI national park",
+       x = "Year",
+       y = expression(Mean~biomass~(kg/m^2)),
+       color = "Protected status",
+       fill = "Protected status")
+p5
+
